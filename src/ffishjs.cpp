@@ -517,6 +517,23 @@ private:
   bool is960 = false;
   bool parsedGame = false;
 public:
+  Game() = default;
+
+  // Embind copies values returned from free functions with current Emscripten
+  // releases. Rebuild the owned board so Game remains safely copyable despite
+  // its unique_ptr member.
+  Game(const Game& other)
+      : header(other.header),
+        variant(other.variant),
+        fen(other.fen),
+        is960(other.is960),
+        parsedGame(other.parsedGame) {
+    if (other.board) {
+      board = std::make_unique<Board>(variant, fen, is960);
+      board->push_moves(other.board->move_stack());
+    }
+  }
+
   std::string header_keys() {
     std::string keys;
     for (auto it = header.begin(); it != header.end(); ++it) {
