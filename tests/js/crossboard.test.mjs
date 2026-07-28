@@ -1,8 +1,20 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import initFfish from "./ffish.js";
 
-const ffish = await initFfish({ print: () => {}, printErr: () => {} });
+globalThis.window = globalThis;
+const moduleSource = await readFile(
+  new URL("./ffish.js", import.meta.url),
+  "utf8",
+);
+const moduleUrl = `data:text/javascript;base64,${Buffer.from(moduleSource).toString("base64")}`;
+const initFfish = (await import(moduleUrl)).default;
+const wasmBinary = await readFile(new URL("./ffish.wasm", import.meta.url));
+const ffish = await initFfish({
+  wasmBinary,
+  locateFile: () => "ffish.wasm",
+  print: () => {},
+  printErr: () => {},
+});
 ffish.loadVariantConfig(
   await readFile(new URL("../../src/variants.ini", import.meta.url), "utf8"),
 );
