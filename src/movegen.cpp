@@ -143,7 +143,7 @@ namespace {
     constexpr Direction UpLeft   = (Us == WHITE ? NORTH_WEST : SOUTH_EAST);
 
     const Bitboard promotionZone = pos.promotion_zone(Us);
-    const Bitboard standardPromotionZone = pos.sittuyin_promotion() ? Bitboard(0) : promotionZone;
+    const Bitboard standardPromotionZone = pos.sittuyin_promotion() ? Bitboard(0) : pos.pawn_promotion_zone(Us);
     const Bitboard doubleStepRegion = pos.double_step_region(Us);
     const Bitboard tripleStepRegion = pos.triple_step_region(Us);
 
@@ -303,10 +303,11 @@ namespace {
                        | (quiets & ~pos.pieces()));
         Bitboard b1 = b & target;
         Bitboard promotion_zone = pos.promotion_zone(Us);
+        Bitboard pawn_promotion_zone = pos.pawn_promotion_zone(Us);
         PieceType promPt = pos.promoted_piece_type(Pt);
         Bitboard b2 = promPt && (!pos.promotion_limit(promPt) || pos.promotion_limit(promPt) > pos.count(Us, promPt)) ? b1 : Bitboard(0);
         Bitboard b3 = pos.piece_demotion() && pos.is_promoted(from) ? b1 : Bitboard(0);
-        Bitboard pawnPromotions = (pos.promotion_pawn_types(Us) & Pt) ? (b & (Type == EVASIONS ? target : ~pos.pieces(Us)) & promotion_zone) : Bitboard(0);
+        Bitboard pawnPromotions = (pos.promotion_pawn_types(Us) & Pt) ? (b & (Type == EVASIONS ? target : ~pos.pieces(Us)) & pawn_promotion_zone) : Bitboard(0);
         Bitboard epSquares = (pos.en_passant_types(Us) & Pt) ? (attacks & ~quiets & pos.ep_squares() & ~pos.pieces()) : Bitboard(0);
 
         // target squares considering pawn promotions

@@ -304,6 +304,8 @@ Variant* VariantParser<DoCheck>::parse(Variant* v) {
         {
             std::string color = c == WHITE ? "White" : "Black";
             parse_attribute("mobilityRegion" + color + capitalizedPiece, v->mobilityRegion[c][pt]);
+            if (parse_attribute("dropRegion" + color + capitalizedPiece, v->dropRegionByType[c][pt]))
+                v->dropRegionByTypeSet[c][pt] = true;
         }
     }
     // piece values
@@ -371,6 +373,10 @@ Variant* VariantParser<DoCheck>::parse(Variant* v) {
     parse_attribute("startFen", v->startFen);
     parse_attribute("promotionRegionWhite", v->promotionRegion[WHITE]);
     parse_attribute("promotionRegionBlack", v->promotionRegion[BLACK]);
+    if (parse_attribute("pawnPromotionRegionWhite", v->pawnPromotionRegion[WHITE]))
+        v->pawnPromotionRegionSet[WHITE] = true;
+    if (parse_attribute("pawnPromotionRegionBlack", v->pawnPromotionRegion[BLACK]))
+        v->pawnPromotionRegionSet[BLACK] = true;
     // Take the first promotionPawnTypes as the main promotionPawnType
     parse_attribute("promotionPawnTypes", v->mainPromotionPawnType[WHITE], v->pieceToChar);
     parse_attribute("promotionPawnTypes", v->mainPromotionPawnType[BLACK], v->pieceToChar);

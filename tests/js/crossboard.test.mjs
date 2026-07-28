@@ -27,6 +27,17 @@ capturesToHandRemoveBlack = q
 
 [crossboard-open-files:crossboard-pure]
 dropNoDoubled = f
+
+[crossboard-fortress:crossboard-pure]
+dropRegionBlackPawn = *5 *6 *7 *8 *9
+dropRegionBlackKnight = *5 *6 *7 *8 *9
+dropRegionBlackBishop = *5 *6 *7 *8 *9
+dropRegionBlackRook = *5 *6 *7 *8 *9
+dropRegionBlackQueen = *5 *6 *7 *8 *9
+
+[crossboard-pawn-none:crossboard-pure]
+promotionPieceTypesBlack = -
+dropRegionBlackPawn = *3 *4 *5 *6 *7 *8 *9
 `);
 
 function afterMove(variant, fen, move) {
@@ -79,6 +90,61 @@ assert.match(
 
 {
   const board = new ffish.Board(
+    "crossboard-fortress",
+    "8k/9/9/9/9/9/9/9/K8[gp] b - - 0 1",
+  );
+  const moves = new Set(board.legalMoves().split(" "));
+  assert.equal(
+    moves.has("G@e4"),
+    true,
+    "native shogi and converted-gold drops must remain unrestricted",
+  );
+  assert.equal(moves.has("P@e4"), false, "chess drops must respect the preset zone");
+  assert.equal(moves.has("P@e5"), true, "chess drops must enter on the preset boundary");
+  board.delete();
+}
+
+{
+  const board = new ffish.Board(
+    "crossboard-pure",
+    "8k/9/9/9/9/9/9/9/K8[p] b - - 0 1",
+  );
+  const moves = new Set(board.legalMoves().split(" "));
+  assert.equal(moves.has("P@e2"), true, "promotable dropped pawns may land on rank 2");
+  assert.equal(moves.has("P@e3"), true, "promotable dropped pawns may land on rank 3");
+  board.delete();
+}
+
+{
+  const board = new ffish.Board(
+    "crossboard-pawn-none",
+    "8k/9/9/9/9/9/9/9/K8[p] b - - 0 1",
+  );
+  const moves = new Set(board.legalMoves().split(" "));
+  assert.equal(moves.has("P@e2"), false, "non-promoting dropped pawns cannot dead-drop");
+  assert.equal(moves.has("P@e3"), true, "non-promoting dropped pawns may land on rank 3");
+  board.delete();
+}
+
+{
+  const board = new ffish.Board(
+    "crossboard-pure",
+    "8k/9/9/9/9/4p4/9/9/K8[] b - - 0 1",
+  );
+  const pawnMoves = board
+    .legalMoves()
+    .split(" ")
+    .filter((move) => move.startsWith("e4"));
+  assert.deepEqual(
+    pawnMoves,
+    ["e4e3"],
+    "dropped chess pawns must not promote before rank 1",
+  );
+  board.delete();
+}
+
+{
+  const board = new ffish.Board(
     "crossboard-pure",
     "4k4/9/9/9/9/pf7/9/9/4K4[pf] b - - 0 1",
   );
@@ -104,14 +170,27 @@ assert.match(
 }
 
 {
-  const board = new ffish.Board(
+  const nativeBoard = new ffish.Board(
     "crossboard-pure",
-    "3tkt3/9/9/9/7i1/9/9/9/4K4[pf] b - - 0 1",
+    "9/9/9/9/9/2a6/9/2k6/K8[f] b - - 0 1",
   );
-  const moves = new Set(board.legalMoves().split(" "));
-  assert.equal(moves.has("F@e2"), false, "shogi pawn-drop mate must be illegal");
-  assert.equal(moves.has("P@e2"), false, "chess pawn-drop mate must be illegal");
-  board.delete();
+  assert.equal(
+    nativeBoard.legalMoves().split(" ").includes("F@a2"),
+    false,
+    "shogi pawn-drop mate must be illegal",
+  );
+  nativeBoard.delete();
+
+  const chessBoard = new ffish.Board(
+    "crossboard-open-files",
+    "9/9/9/9/9/2a6/9/2k6/K8[p] b - - 0 1",
+  );
+  assert.equal(
+    chessBoard.legalMoves().split(" ").includes("P@b2"),
+    false,
+    "chess pawn-drop mate must be illegal",
+  );
+  chessBoard.delete();
 }
 
 {

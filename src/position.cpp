@@ -1393,7 +1393,7 @@ bool Position::pseudo_legal(const Move m) const {
   {
       // We have already handled promotion moves, so destination
       // cannot be on the 8th/1st rank.
-      if (mandatory_pawn_promotion() && (promotion_zone(us) & to) && !sittuyin_promotion())
+      if (mandatory_pawn_promotion() && (pawn_promotion_zone(us) & to) && !sittuyin_promotion())
           return false;
 
       if (   !(pawn_attacks_bb(us, from) & pieces(~us) & to)     // Not a capture
@@ -1835,7 +1835,9 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
       {
           Piece promotion = make_piece(us, type_of(m) == PROMOTION ? promotion_type(m) : promoted_piece_type(PAWN));
 
-          assert((promotion_zone(us) & to) || sittuyin_promotion());
+          assert(((type_of(m) == PROMOTION ? pawn_promotion_zone(us)
+                                           : promotion_zone(us)) & to)
+                 || sittuyin_promotion());
           assert(type_of(promotion) >= KNIGHT && type_of(promotion) < KING);
 
           st->promotionPawn = piece_on(to);
@@ -2207,7 +2209,7 @@ void Position::undo_move(Move m) {
 
   if (type_of(m) == PROMOTION)
   {
-      assert((promotion_zone(us) & to) || sittuyin_promotion());
+      assert((pawn_promotion_zone(us) & to) || sittuyin_promotion());
       assert(type_of(pc) == promotion_type(m));
       assert(type_of(pc) >= KNIGHT && type_of(pc) < KING);
       assert(type_of(st->promotionPawn) == main_promotion_pawn_type(us) || !captures_to_hand());

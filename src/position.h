@@ -129,6 +129,7 @@ public:
   const std::string& piece_to_char() const;
   const std::string& piece_to_char_synonyms() const;
   Bitboard promotion_zone(Color c) const;
+  Bitboard pawn_promotion_zone(Color c) const;
   Square promotion_square(Color c, Square s) const;
   PieceType main_promotion_pawn_type(Color c) const;
   PieceSet promotion_piece_types(Color c) const;
@@ -456,6 +457,12 @@ inline Bitboard Position::promotion_zone(Color c) const {
   return var->promotionRegion[c];
 }
 
+inline Bitboard Position::pawn_promotion_zone(Color c) const {
+  assert(var != nullptr);
+  return var->pawnPromotionRegionSet[c] ? var->pawnPromotionRegion[c]
+                                        : var->promotionRegion[c];
+}
+
 inline Square Position::promotion_square(Color c, Square s) const {
   assert(var != nullptr);
   Bitboard b = promotion_zone(c) & forward_file_bb(c, s) & board_bb();
@@ -731,13 +738,15 @@ inline Bitboard Position::drop_region(Color c) const {
 }
 
 inline Bitboard Position::drop_region(Color c, PieceType pt) const {
-  Bitboard b = drop_region(c) & board_bb(c, pt);
+  Bitboard b = (var->dropRegionByTypeSet[c][pt] ? var->dropRegionByType[c][pt]
+                                                : drop_region(c))
+             & board_bb(c, pt);
 
   // Pawns on back ranks
   if (pt == PAWN)
   {
       if (!var->promotionZonePawnDrops)
-          b &= ~promotion_zone(c);
+          b &= ~pawn_promotion_zone(c);
       if (!first_rank_pawn_drops())
           b &= ~rank_bb(relative_rank(c, RANK_1, max_rank()));
   }

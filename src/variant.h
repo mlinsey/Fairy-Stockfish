@@ -52,6 +52,8 @@ struct Variant {
   std::string startFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
   Bitboard mobilityRegion[COLOR_NB][PIECE_TYPE_NB] = {};
   Bitboard promotionRegion[COLOR_NB] = {Rank8BB, Rank1BB};
+  Bitboard pawnPromotionRegion[COLOR_NB] = {};
+  bool pawnPromotionRegionSet[COLOR_NB] = {false, false};
   PieceType mainPromotionPawnType[COLOR_NB] = {PAWN, PAWN};
   PieceSet promotionPawnTypes[COLOR_NB] = {piece_set(PAWN), piece_set(PAWN)};
   PieceSet promotionPieceTypes[COLOR_NB] = {piece_set(QUEEN) | ROOK | BISHOP | KNIGHT,
@@ -101,6 +103,8 @@ struct Variant {
   EnclosingRule enclosingDrop = NO_ENCLOSING;
   Bitboard enclosingDropStart = 0;
   Bitboard dropRegion[COLOR_NB] = {AllSquares, AllSquares};
+  Bitboard dropRegionByType[COLOR_NB][PIECE_TYPE_NB] = {};
+  bool dropRegionByTypeSet[COLOR_NB][PIECE_TYPE_NB] = {};
   bool sittuyinRookDrop = false;
   bool dropOppositeColoredBishop = false;
   bool dropPromoted = false;
