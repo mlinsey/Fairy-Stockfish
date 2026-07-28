@@ -18,6 +18,7 @@
 
 #include <emscripten.h>
 #include <emscripten/bind.h>
+#include <algorithm>
 #include <vector>
 #include <string>
 #include <sstream>
@@ -26,8 +27,10 @@
 #include "misc.h"
 #include "types.h"
 #include "bitboard.h"
+#include "endgame.h"
 #include "evaluate.h"
 #include "position.h"
+#include "psqt.h"
 #include "search.h"
 #include "syzygy/tbprobe.h"
 #include "thread.h"
@@ -49,6 +52,10 @@ void initialize_stockfish() {
   Bitboards::init();
   Position::init();
   Bitbases::init();
+  Endgames::init();
+  Options["Use NNUE"] = false;
+  Threads.set(1);
+  Search::clear();
 }
 
 #define DELIM " "
@@ -84,6 +91,7 @@ private:
   Position pos;
   Thread* thread;
   std::vector<Move> moveStack;
+  std::string initialFen;
   bool is960;
 
 public:
@@ -186,7 +194,42 @@ public:
   void set_fen(std::string fen) {
     resetStates();
     moveStack.clear();
+    initialFen = fen;
     pos.set(v, fen, is960, &states->back(), thread);
+  }
+
+  std::string best_move(int depth, int moveTime, int skillLevel) {
+    StateListPtr searchStates(new std::deque<StateInfo>(1));
+    Position searchPos;
+    searchPos.set(v, initialFen, is960, &searchStates->back(), Threads.main());
+
+    for (Move move : moveStack) {
+      searchStates->emplace_back();
+      searchPos.do_move(move, searchStates->back());
+    }
+
+    Options["Skill Level"] = std::clamp(skillLevel, -20, 20);
+    Options["MultiPV"] = 1;
+    Options["UCI_LimitStrength"] = false;
+
+    Search::LimitsType limits;
+    limits.startTime = now();
+    limits.depth = std::max(depth, 0);
+    limits.movetime = std::max(moveTime, 0);
+    if (!limits.depth && !limits.movetime)
+      limits.depth = 1;
+
+    Threads.start_thinking(searchPos, searchStates, limits);
+
+    Thread* bestThread = Threads.main()->bestThread
+                       ? Threads.main()->bestThread
+                       : Threads.main();
+    if (bestThread->rootMoves.empty()
+        || bestThread->rootMoves[0].pv.empty()
+        || bestThread->rootMoves[0].pv[0] == MOVE_NONE)
+      return "";
+
+    return UCI::move(bestThread->rootPos, bestThread->rootMoves[0].pv[0]);
   }
 
   // note: const identifier for pos not possible due to SAN::move_to_san()
@@ -443,9 +486,12 @@ private:
     }
     v = get_variant(uciVariant);
     UCI::init_variant(v);
+    PSQT::init(v);
     this->resetStates();
     if (fen == "")
       fen = v->startFen;
+    this->initialFen = fen;
+    this->thread = Threads.main();
     this->pos.set(this->v, fen, is960, &this->states->back(), this->thread);
     this->is960 = is960;
   }
@@ -715,6 +761,7 @@ EMSCRIPTEN_BINDINGS(ffish_js) {
     .function("fen", select_overload<std::string(bool)const>(&Board::fen))
     .function("fen", select_overload<std::string(bool, int)const>(&Board::fen))
     .function("setFen", &Board::set_fen)
+    .function("bestMove", &Board::best_move)
     .function("sanMove", select_overload<std::string(std::string)>(&Board::san_move))
     .function("sanMove", select_overload<std::string(std::string, Notation)>(&Board::san_move))
     .function("variationSan", select_overload<std::string(std::string)>(&Board::variation_san))

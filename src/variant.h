@@ -93,6 +93,9 @@ struct Variant {
   bool pieceDrops = false;
   bool dropLoop = false;
   bool capturesToHand = false;
+  bool capturesToHandByColor[COLOR_NB] = {true, true};
+  PieceSet capturesToHandRemove[COLOR_NB] = {NO_PIECE_SET, NO_PIECE_SET};
+  PieceType capturesToHandAs[COLOR_NB][PIECE_TYPE_NB] = {};
   bool firstRankPawnDrops = false;
   bool promotionZonePawnDrops = false;
   EnclosingRule enclosingDrop = NO_ENCLOSING;
@@ -101,7 +104,7 @@ struct Variant {
   bool sittuyinRookDrop = false;
   bool dropOppositeColoredBishop = false;
   bool dropPromoted = false;
-  PieceType dropNoDoubled = NO_PIECE_TYPE;
+  PieceSet dropNoDoubled = NO_PIECE_SET;
   int dropNoDoubledCount = 1;
   bool immobilityIllegal = false;
   bool gating = false;
@@ -132,6 +135,7 @@ struct Variant {
   bool stalematePieceCount = false; // multiply stalemate value by sign(count(~stm) - count(stm))
   Value checkmateValue = -VALUE_MATE;
   bool shogiPawnDropMateIllegal = false;
+  PieceSet pawnDropMateTypes = piece_set(SHOGI_PAWN);
   bool shatarMateRule = false;
   bool bikjangRule = false;
   Value extinctionValue = VALUE_NONE;

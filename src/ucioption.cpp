@@ -143,7 +143,7 @@ void on_variant_change(const Option &o) {
             {
                 if (pt == PAWN && !v->firstRankPawnDrops)
                     suffix += "j";
-                else if (pt == v->dropNoDoubled)
+                else if (v->dropNoDoubled & pt)
                     suffix += std::string(v->dropNoDoubledCount, 'f');
                 else if (pt == BISHOP && v->dropOppositeColoredBishop)
                     suffix += "s";

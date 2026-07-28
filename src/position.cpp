@@ -1063,6 +1063,22 @@ bool Position::legal(Move m) const {
   if ((!checking_permitted() || (sittuyin_promotion() && type_of(m) == PROMOTION) || (!drop_checks() && type_of(m) == DROP)) && gives_check(m))
       return false;
 
+  // Shogi-style pawn-drop mate prohibition. The historic implementation only
+  // adjusted the mate score, which could still expose the move through the
+  // legal-move API. Crossboard needs both pawn identities to be truly illegal.
+  if (    type_of(m) == DROP
+      &&  var->shogiPawnDropMateIllegal
+      && (var->pawnDropMateTypes & type_of(moved_piece(m)))
+      &&  gives_check(m))
+  {
+      StateInfo setupState, nextState;
+      Position after;
+      after.set(var, fen(), is_chess960(), &setupState, this_thread());
+      after.do_move(m, nextState);
+      if (MoveList<LEGAL>(after).size() == 0)
+          return false;
+  }
+
   // Illegal quiet moves
   if (must_capture() && !capture(m) && has_capture())
       return false;
@@ -1644,11 +1660,9 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
 
       if (type_of(m) == EN_PASSANT)
           board[capsq] = NO_PIECE;
-      if (captures_to_hand())
+      Piece pieceToHand = captured_piece_to_hand(us, captured, capturedPromoted, unpromotedCaptured);
+      if (pieceToHand)
       {
-          Piece pieceToHand = !capturedPromoted || drop_loop() ? ~captured
-                             : unpromotedCaptured ? ~unpromotedCaptured
-                                                  : make_piece(~color_of(captured), main_promotion_pawn_type(color_of(captured)));
           add_to_hand(pieceToHand);
           k ^=  Zobrist::inHand[pieceToHand][pieceCountInHand[color_of(pieceToHand)][type_of(pieceToHand)] - 1]
               ^ Zobrist::inHand[pieceToHand][pieceCountInHand[color_of(pieceToHand)][type_of(pieceToHand)]];
@@ -2029,11 +2043,9 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
               st->promotedBycatch |= bsq;
           remove_piece(bsq);
           board[bsq] = NO_PIECE;
-          if (captures_to_hand())
+          Piece pieceToHand = captured_piece_to_hand(us, bpc, capturedPromoted, unpromotedCaptured);
+          if (pieceToHand)
           {
-              Piece pieceToHand = !capturedPromoted || drop_loop() ? ~bpc
-                                 : unpromotedCaptured ? ~unpromotedCaptured
-                                                      : make_piece(~color_of(bpc), PAWN);
               add_to_hand(pieceToHand);
               k ^=  Zobrist::inHand[pieceToHand][pieceCountInHand[color_of(pieceToHand)][type_of(pieceToHand)] - 1]
                   ^ Zobrist::inHand[pieceToHand][pieceCountInHand[color_of(pieceToHand)][type_of(pieceToHand)]];
@@ -2174,9 +2186,9 @@ void Position::undo_move(Move m) {
           if (bpc)
           {
               put_piece(bpc, bsq, isPromoted, st->demotedBycatch & bsq ? unpromotedBpc : NO_PIECE);
-              if (captures_to_hand())
-                  remove_from_hand(!drop_loop() && (st->promotedBycatch & bsq) ? make_piece(~color_of(unpromotedBpc), PAWN)
-                                                                               : ~unpromotedBpc);
+              Piece handPiece = captured_piece_to_hand(us, bpc, isPromoted, unpromotedBpc);
+              if (handPiece)
+                  remove_from_hand(handPiece);
           }
       }
       // Reset piece since it exploded itself
@@ -2245,10 +2257,9 @@ void Position::undo_move(Move m) {
           }
 
           put_piece(st->capturedPiece, capsq, st->capturedpromoted, st->unpromotedCapturedPiece); // Restore the captured piece
-          if (captures_to_hand())
-              remove_from_hand(!drop_loop() && st->capturedpromoted ? (st->unpromotedCapturedPiece ? ~st->unpromotedCapturedPiece
-                                                                                                   : make_piece(~color_of(st->capturedPiece), main_promotion_pawn_type(us)))
-                                                                    : ~st->capturedPiece);
+          Piece handPiece = captured_piece_to_hand(us, st->capturedPiece, st->capturedpromoted, st->unpromotedCapturedPiece);
+          if (handPiece)
+              remove_from_hand(handPiece);
       }
   }
 
@@ -2370,11 +2381,11 @@ Key Position::key_after(Move m) const {
   if (captured)
   {
       k ^= Zobrist::psq[captured][to];
-      if (captures_to_hand())
+      Piece handPiece = captured_piece_to_hand(sideToMove, captured, is_promoted(to), unpromoted_piece_on(to));
+      if (handPiece)
       {
-          Piece removeFromHand = !drop_loop() && is_promoted(to) ? make_piece(~color_of(captured), main_promotion_pawn_type(color_of(captured))) : ~captured;
-          k ^= Zobrist::inHand[removeFromHand][pieceCountInHand[color_of(removeFromHand)][type_of(removeFromHand)] + 1]
-              ^ Zobrist::inHand[removeFromHand][pieceCountInHand[color_of(removeFromHand)][type_of(removeFromHand)]];
+          k ^= Zobrist::inHand[handPiece][pieceCountInHand[color_of(handPiece)][type_of(handPiece)] + 1]
+              ^ Zobrist::inHand[handPiece][pieceCountInHand[color_of(handPiece)][type_of(handPiece)]];
       }
   }
   if (type_of(m) == DROP)

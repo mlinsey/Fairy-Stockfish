@@ -172,6 +172,9 @@ public:
   bool piece_drops() const;
   bool drop_loop() const;
   bool captures_to_hand() const;
+  bool captures_to_hand(Color c) const;
+  Piece captured_piece_to_hand(Color capturer, Piece captured, bool promoted,
+                               Piece unpromoted = NO_PIECE) const;
   bool first_rank_pawn_drops() const;
   bool can_drop(Color c, PieceType pt) const;
   EnclosingRule enclosing_drop() const;
@@ -180,7 +183,7 @@ public:
   bool sittuyin_rook_drop() const;
   bool drop_opposite_colored_bishop() const;
   bool drop_promoted() const;
-  PieceType drop_no_doubled() const;
+  PieceSet drop_no_doubled() const;
   PieceSet promotion_pawn_types(Color c) const;
   PieceSet en_passant_types(Color c) const;
   bool immobility_illegal() const;
@@ -236,6 +239,7 @@ public:
 
   // Position representation
   Bitboard pieces(PieceType pt = ALL_PIECES) const;
+  Bitboard pieces(PieceSet pts) const;
   Bitboard pieces(PieceType pt1, PieceType pt2) const;
   Bitboard pieces(Color c) const;
   Bitboard pieces(Color c, PieceType pt) const;
@@ -690,6 +694,27 @@ inline bool Position::captures_to_hand() const {
   return var->capturesToHand;
 }
 
+inline bool Position::captures_to_hand(Color c) const {
+  assert(var != nullptr);
+  return var->capturesToHand && var->capturesToHandByColor[c];
+}
+
+inline Piece Position::captured_piece_to_hand(Color capturer, Piece captured,
+                                              bool promoted, Piece unpromoted) const {
+  if (!captured || !captures_to_hand(capturer))
+      return NO_PIECE;
+
+  Piece handPiece = !promoted || drop_loop() ? make_piece(capturer, type_of(captured))
+                  : unpromoted ? make_piece(capturer, type_of(unpromoted))
+                               : make_piece(capturer, main_promotion_pawn_type(color_of(captured)));
+  PieceType handType = type_of(handPiece);
+  if (var->capturesToHandRemove[capturer] & handType)
+      return NO_PIECE;
+  if (var->capturesToHandAs[capturer][handType])
+      handPiece = make_piece(capturer, var->capturesToHandAs[capturer][handType]);
+  return handPiece;
+}
+
 inline bool Position::first_rank_pawn_drops() const {
   assert(var != nullptr);
   return var->firstRankPawnDrops;
@@ -717,7 +742,7 @@ inline Bitboard Position::drop_region(Color c, PieceType pt) const {
           b &= ~rank_bb(relative_rank(c, RANK_1, max_rank()));
   }
   // Doubled shogi pawns
-  if (pt == drop_no_doubled())
+  if (drop_no_doubled() & pt)
       for (File f = FILE_A; f <= max_file(); ++f)
           if (popcount(file_bb(f) & pieces(c, pt)) >= var->dropNoDoubledCount)
               b &= ~file_bb(f);
@@ -818,7 +843,7 @@ inline bool Position::drop_promoted() const {
   return var->dropPromoted;
 }
 
-inline PieceType Position::drop_no_doubled() const {
+inline PieceSet Position::drop_no_doubled() const {
   assert(var != nullptr);
   return var->dropNoDoubled;
 }
@@ -961,7 +986,7 @@ inline Value Position::checkmate_value(int ply) const {
   assert(var != nullptr);
   // Check for illegal mate by shogi pawn drop
   if (    var->shogiPawnDropMateIllegal
-      && !(checkers() & ~pieces(SHOGI_PAWN))
+      && !(checkers() & ~pieces(var->pawnDropMateTypes))
       && !st->capturedPiece
       &&  st->pliesFromNull > 0
       && (st->materialKey != st->previous->materialKey))
@@ -1183,6 +1208,13 @@ inline Piece Position::moved_piece(Move m) const {
 
 inline Bitboard Position::pieces(PieceType pt) const {
   return byTypeBB[pt];
+}
+
+inline Bitboard Position::pieces(PieceSet pts) const {
+  Bitboard result = 0;
+  while (pts)
+      result |= pieces(pop_lsb(pts));
+  return result;
 }
 
 inline Bitboard Position::pieces(PieceType pt1, PieceType pt2) const {

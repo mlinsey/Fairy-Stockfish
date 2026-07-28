@@ -459,6 +459,26 @@ Variant* VariantParser<DoCheck>::parse(Variant* v) {
     parse_attribute("pieceDrops", v->pieceDrops);
     parse_attribute("dropLoop", v->dropLoop);
     parse_attribute("capturesToHand", v->capturesToHand);
+    parse_attribute("capturesToHandWhite", v->capturesToHandByColor[WHITE]);
+    parse_attribute("capturesToHandBlack", v->capturesToHandByColor[BLACK]);
+    parse_attribute("capturesToHandRemoveWhite", v->capturesToHandRemove[WHITE], v->pieceToChar);
+    parse_attribute("capturesToHandRemoveBlack", v->capturesToHandRemove[BLACK], v->pieceToChar);
+    for (Color c : {WHITE, BLACK})
+    {
+        const std::string optionName = c == WHITE ? "capturesToHandAsWhite" : "capturesToHandAsBlack";
+        const auto& conversion = config.find(optionName);
+        if (conversion != config.end())
+        {
+            char token;
+            size_t from = 0, to = 0;
+            std::stringstream ss(conversion->second);
+            while (   ss >> token && (from = v->pieceToChar.find(toupper(token))) != std::string::npos && ss >> token
+                   && ss >> token && (to = v->pieceToChar.find(toupper(token))) != std::string::npos)
+                v->capturesToHandAs[c][from] = PieceType(to);
+            if (DoCheck && (from == std::string::npos || to == std::string::npos))
+                std::cerr << optionName << " - Invalid piece type: " << token << std::endl;
+        }
+    }
     parse_attribute("firstRankPawnDrops", v->firstRankPawnDrops);
     parse_attribute("promotionZonePawnDrops", v->promotionZonePawnDrops);
     parse_attribute("enclosingDrop", v->enclosingDrop);
@@ -509,6 +529,7 @@ Variant* VariantParser<DoCheck>::parse(Variant* v) {
     parse_attribute("stalematePieceCount", v->stalematePieceCount);
     parse_attribute("checkmateValue", v->checkmateValue);
     parse_attribute("shogiPawnDropMateIllegal", v->shogiPawnDropMateIllegal);
+    parse_attribute("pawnDropMateTypes", v->pawnDropMateTypes, v->pieceToChar);
     parse_attribute("shatarMateRule", v->shatarMateRule);
     parse_attribute("bikjangRule", v->bikjangRule);
     parse_attribute("extinctionValue", v->extinctionValue);
