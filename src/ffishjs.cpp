@@ -94,6 +94,34 @@ private:
   std::string initialFen;
   bool is960;
 
+  Thread* search(int depth, int moveTime, int skillLevel, int multiPv) {
+    StateListPtr searchStates(new std::deque<StateInfo>(1));
+    Position searchPos;
+    searchPos.set(v, initialFen, is960, &searchStates->back(), Threads.main());
+
+    for (Move move : moveStack) {
+      searchStates->emplace_back();
+      searchPos.do_move(move, searchStates->back());
+    }
+
+    Options["Skill Level"] =
+      std::to_string(std::clamp(skillLevel, -20, 20));
+    Options["MultiPV"] = std::to_string(std::clamp(multiPv, 1, 256));
+    Options["UCI_LimitStrength"] = std::string("false");
+
+    Search::LimitsType limits;
+    limits.startTime = now();
+    limits.depth = std::max(depth, 0);
+    limits.movetime = std::max(moveTime, 0);
+    if (!limits.depth && !limits.movetime)
+      limits.depth = 1;
+
+    Threads.start_thinking(searchPos, searchStates, limits);
+    return Threads.main()->bestThread
+         ? Threads.main()->bestThread
+         : Threads.main();
+  }
+
 public:
   static bool sfInitialized;
 
@@ -199,37 +227,36 @@ public:
   }
 
   std::string best_move(int depth, int moveTime, int skillLevel) {
-    StateListPtr searchStates(new std::deque<StateInfo>(1));
-    Position searchPos;
-    searchPos.set(v, initialFen, is960, &searchStates->back(), Threads.main());
-
-    for (Move move : moveStack) {
-      searchStates->emplace_back();
-      searchPos.do_move(move, searchStates->back());
-    }
-
-    Options["Skill Level"] = std::clamp(skillLevel, -20, 20);
-    Options["MultiPV"] = 1;
-    Options["UCI_LimitStrength"] = false;
-
-    Search::LimitsType limits;
-    limits.startTime = now();
-    limits.depth = std::max(depth, 0);
-    limits.movetime = std::max(moveTime, 0);
-    if (!limits.depth && !limits.movetime)
-      limits.depth = 1;
-
-    Threads.start_thinking(searchPos, searchStates, limits);
-
-    Thread* bestThread = Threads.main()->bestThread
-                       ? Threads.main()->bestThread
-                       : Threads.main();
+    Thread* bestThread = search(depth, moveTime, skillLevel, 1);
     if (bestThread->rootMoves.empty()
         || bestThread->rootMoves[0].pv.empty()
         || bestThread->rootMoves[0].pv[0] == MOVE_NONE)
       return "";
 
     return UCI::move(bestThread->rootPos, bestThread->rootMoves[0].pv[0]);
+  }
+
+  std::string candidate_moves(int depth, int moveTime, int multiPv) {
+    Thread* bestThread = search(depth, moveTime, 20, multiPv);
+    std::stringstream candidates;
+    size_t count = std::min(
+      size_t(std::clamp(multiPv, 1, 256)),
+      bestThread->rootMoves.size()
+    );
+
+    for (size_t index = 0; index < count; ++index) {
+      const Search::RootMove& candidate = bestThread->rootMoves[index];
+      if (candidate.pv.empty()
+          || candidate.pv[0] == MOVE_NONE
+          || candidate.score == -VALUE_INFINITE)
+        continue;
+      if (candidates.tellp() > 0)
+        candidates << '\n';
+      candidates << UCI::move(bestThread->rootPos, candidate.pv[0])
+                 << ' ' << UCI::value(candidate.score);
+    }
+
+    return candidates.str();
   }
 
   // note: const identifier for pos not possible due to SAN::move_to_san()
@@ -762,6 +789,7 @@ EMSCRIPTEN_BINDINGS(ffish_js) {
     .function("fen", select_overload<std::string(bool, int)const>(&Board::fen))
     .function("setFen", &Board::set_fen)
     .function("bestMove", &Board::best_move)
+    .function("candidateMoves", &Board::candidate_moves)
     .function("sanMove", select_overload<std::string(std::string)>(&Board::san_move))
     .function("sanMove", select_overload<std::string(std::string, Notation)>(&Board::san_move))
     .function("variationSan", select_overload<std::string(std::string)>(&Board::variation_san))
