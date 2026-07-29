@@ -94,6 +94,12 @@ private:
   std::string initialFen;
   bool is960;
 
+  static constexpr int MaxCandidateMoves = 256;
+
+  static int candidate_count(int multiPv) {
+    return std::clamp(multiPv, 1, MaxCandidateMoves);
+  }
+
   Thread* search(int depth, int moveTime, int skillLevel, int multiPv) {
     StateListPtr searchStates(new std::deque<StateInfo>(1));
     Position searchPos;
@@ -104,9 +110,11 @@ private:
       searchPos.do_move(move, searchStates->back());
     }
 
-    Options["Skill Level"] =
-      std::to_string(std::clamp(skillLevel, -20, 20));
-    Options["MultiPV"] = std::to_string(std::clamp(multiPv, 1, 256));
+    const std::string previousSkill = Options["Skill Level"];
+    const std::string previousMultiPv = Options["MultiPV"];
+    const std::string previousLimitStrength = Options["UCI_LimitStrength"];
+    Options["Skill Level"] = std::to_string(std::clamp(skillLevel, -20, 20));
+    Options["MultiPV"] = std::to_string(candidate_count(multiPv));
     Options["UCI_LimitStrength"] = std::string("false");
 
     Search::LimitsType limits;
@@ -117,9 +125,13 @@ private:
       limits.depth = 1;
 
     Threads.start_thinking(searchPos, searchStates, limits);
-    return Threads.main()->bestThread
-         ? Threads.main()->bestThread
-         : Threads.main();
+    Thread* bestThread = Threads.main()->bestThread
+                       ? Threads.main()->bestThread
+                       : Threads.main();
+    Options["Skill Level"] = previousSkill;
+    Options["MultiPV"] = previousMultiPv;
+    Options["UCI_LimitStrength"] = previousLimitStrength;
+    return bestThread;
   }
 
 public:
@@ -237,10 +249,11 @@ public:
   }
 
   std::string candidate_moves(int depth, int moveTime, int multiPv) {
+    // Candidate scores stay objective; TypeScript applies the novice policy.
     Thread* bestThread = search(depth, moveTime, 20, multiPv);
     std::stringstream candidates;
     size_t count = std::min(
-      size_t(std::clamp(multiPv, 1, 256)),
+      size_t(candidate_count(multiPv)),
       bestThread->rootMoves.size()
     );
 
