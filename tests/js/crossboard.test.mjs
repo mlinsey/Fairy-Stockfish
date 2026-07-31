@@ -198,6 +198,23 @@ assert.match(
   const move = board.bestMove(1, 0, -20);
   assert.ok(move);
   assert.equal(board.legalMoves().split(" ").includes(move), true);
+  const candidates = board.candidateMoves(1, 0, 8).split("\n");
+  assert.ok(candidates.length > 1, "candidate search must return alternatives");
+  for (const candidate of candidates) {
+    const [candidateMove, scoreType, score, ...extra] = candidate.split(" ");
+    assert.equal(
+      extra.length,
+      0,
+      "candidate rows must contain move, score type, and score",
+    );
+    assert.equal(
+      board.legalMoves().split(" ").includes(candidateMove),
+      true,
+      `candidate must be legal: ${candidateMove}`,
+    );
+    assert.match(scoreType, /^(?:cp|mate)$/, "candidate score type must be UCI");
+    assert.match(score, /^-?\d+$/, "candidate score must be an integer");
+  }
   board.delete();
 }
 

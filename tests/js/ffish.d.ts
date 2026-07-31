@@ -49,6 +49,8 @@ export interface Board {
     is960(): boolean;
     fen(showPromoted?: boolean, countStarted?: number): string;
     setFen(fen: string): void;
+    bestMove(depth: number, moveTime: number, skillLevel: number): string;
+    candidateMoves(depth: number, moveTime: number, multiPv: number): string;
     sanMove(uciMove: string, notation?: Notation): string;
     variationSan(uciMoves: string, notation?: Notation, moveNumbers?: boolean): string;
     turn(): boolean;
